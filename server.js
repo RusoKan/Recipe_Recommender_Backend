@@ -1,20 +1,22 @@
 require('dotenv').config()
-
+const { v4: uuidv4 } = require('uuid');
 const bodyParser = require("body-parser")
 const express = require("express")
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const app = express()
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
 const saltRounds = 10;
-
+let currentAccount={}
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(bodyParser.json());
 app.use(cors())
 PORT = process.env.PORT || 3000
+
 
 app.use(session({
     secret: process.env.SECRET,
@@ -61,11 +63,17 @@ passport.use(new LocalStrategy({
     passwordField: 'password'
 },authUser))
 passport.serializeUser((userObj, done) => {
-    done(null, userObj)
-})
-passport.deserializeUser((userObj, done) => {
-    done(null, userObj)
-})
+    done(null, userObj.account.id); // Store only the user ID in the session
+  });
+  
+  passport.deserializeUser((userId, done) => {
+    Account.findOne({ id: userId })
+      .exec()
+      .then((account) => {
+        done(null, { account });
+      })
+      .catch((error) => done(error));
+  });
 
 
 const { Schema, model } = mongoose;
@@ -81,97 +89,88 @@ const MongooseConnect = async () => {
 
 }
 const user_accounts = new Schema({
+    id:String,
     first_name: String,
     last_name: String,
+    date_of_birth:String,
+    gender:String,
+    country:String,
     Email: String,
-    Password: String
+    Password: String,
+    Diet:{
+    TypeOfdiet:String,
+    glutenFree:Boolean,
+    dairyFree:Boolean ,
+    Vegetarian:Boolean ,
+    Vegan:Boolean,
+  }
 })
 const Account = model("Account", user_accounts)
 
 app.post("/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
-      if (user) {
-        req.logIn(user, (err) => {
-            if (err) {
-              return next(err);
-            }
+  passport.authenticate("local", (err, user, info) => {
+    if (user) {
+      req.logIn(user, (err) => {
+        if (err) {
+          return next(err);
+        }
         console.log(user, info);
-        console.log(req.isAuthenticated())
-        return res.json(true);
-        
-      }
-         ) 
-    }else {
-        console.log(user, info);
-        // Authentication failed
-        return res.json(false);
-      }
-    })(req, res, next);
-  });
+        console.log(req.isAuthenticated());
+        currentAccount=user.account
+        console.log(user.account.id);
+        return res.json({
+          account: user.account,
+          authentication: true,
+        });
+      });
+    } else {
+      console.log(user, info);
+      // Authentication failed
+      return res.json({
+        authentication: false,
+      });
+    }
+  })(req, res, next);
+});
 
-  app.get("/dashboard",(req,res,next)=>{
+  app.get("/authenticationCheck",(req,res,next)=>{
+    console.log("IN authentication check")
     res.json(req.isAuthenticated())
-
+    
   })
   app.post('/logout', function(req, res, next){
     req.logout(function(err) {
       if (err) { return next(err); }
       console.log(req.isAuthenticated())
+      currentAccount={}
       res.json(req.isAuthenticated())
     });
   });
+
+  app.get("/dashboard",(req,res,next)=>{
+    console.log(currentAccount)
+    res.json(currentAccount)
+  })
+
   
-// app.post("/login", (req, res, next) => {
-//     passport.authenticate("local", (err, user, info) => {
-//       if (user) {
-//         return res.json(true);
-//       } else {
-//         console.log(user, info)
-//         // Authentication failed
-//         return res.json(false);
-//       }
-//     })(req, res, next);
-//   });
-
-// app.post("/login", (req, res, next) =>
-
-// {passport.authenticate("local",(err, user, info) =>
-//         {
-//             console.log("hello")
-//             if (user) {
-//                 return res.json(true);
-//               }
-//               else 
-//               {
-//                 // Authentication failed
-//                 return res.json(false);
-//               }
-//         }
-//     )}
-// )
-// app.get("/dashboard", (req, res, next) => {
-//     if (req.isAuthenticated())
-//         console.log("I'm Here")
-//     else {
-//         res.redirect("/login")
-//     }
-
-
-// })
-
-
-
-
 app.post("/signup", async (req, res, next) => {
     Account.findOne({ Email: req.body.Email }).exec()
         .then((account) => {
             if (!account) {
                 bcrypt.hash(req.body.password, saltRounds).then(function (hash) {
                     const user = Account({
+                        id:uuidv4(),
                         first_name: req.body.first_name,
                         last_name: req.body.lastname,
                         Email: req.body.Email,
                         Password: hash,
+                        Diet: {
+                          TypeOfdiet: 'No Diet restriction',
+                          glutenFree: false,
+                          dairyFree: false,
+                          Vegetarian: false,
+                          Vegan: false
+                        }
                     })
                     user.save()
                 });
@@ -191,7 +190,19 @@ app.post("/signup", async (req, res, next) => {
 
 
 })
+app.put("/update",(req,res,next)=>{
+  console.log(req.body)
+  Account.findOneAndUpdate({ id: currentAccount.id },req.body,{new: true} )
+  .then(updatedDoc => {
+    currentAccount=updatedDoc
+    res.json(updatedDoc)
+    console.log('Updated document:', updatedDoc);
+  })
+  .catch(error => {
+    console.error('Error updating document:', error);
+  });
 
+})
 
 MongooseConnect().then
     (app.listen(PORT, () => {
