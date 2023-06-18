@@ -5,6 +5,7 @@ const express = require("express")
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const findOrCreate = require("mongoose-findorcreate");
 const app = express()
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -12,9 +13,15 @@ const bcrypt = require('bcrypt');
 const session = require('express-session');
 const saltRounds = 10;
 let currentAccount={}
+
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(bodyParser.json());
-app.use(cors())
+app.use(cors({
+  origin:"http://localhost:5173",
+  methods:"GET,POST,PUT,DELETE",
+  credentials:true,
+
+}))
 PORT = process.env.PORT || 3000
 
 
@@ -62,19 +69,41 @@ passport.use(new LocalStrategy({
     usernameField: 'email',    // define the parameter in req.body that passport can use as username and password
     passwordField: 'password'
 },authUser))
-passport.serializeUser((userObj, done) => {
-    done(null, userObj.account.id); // Store only the user ID in the session
-  });
-  
-  passport.deserializeUser((userId, done) => {
-    Account.findOne({ id: userId })
-      .exec()
-      .then((account) => {
-        done(null, { account });
-      })
-      .catch((error) => done(error));
-  });
 
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: "/auth/google/callback",
+},
+function(accessToken, refreshToken, profile, cb) {
+  Account.findOrCreate({ id:`G-${profile.id}`,Email:profile.emails[0].value}, 
+  function (err, user) {
+    ProfileAuth=profile
+    currentAccount=user
+    return cb(err, user);
+  });
+}
+));
+
+// passport.serializeUser((userObj, done) => {
+//   console.log("MY INFO",userObj)
+//     done(null, userObj.account.id); // Store only the user ID in the session
+//   });
+  
+//   passport.deserializeUser((userId, done) => {
+//     Account.findOne({ id: userId })
+//       .exec()
+//       .then((account) => {
+//         done(null, { account });
+//       })
+//       .catch((error) => done(error));
+//   });
+passport.serializeUser((user,done)=>{
+  done(null,user)
+})
+passport.deserializeUser((user,done)=>{
+  done(null,user)
+})
 
 const { Schema, model } = mongoose;
 const MongooseConnect = async () => {
@@ -105,7 +134,50 @@ const user_accounts = new Schema({
     Vegan:Boolean,
   }
 })
+user_accounts.plugin(findOrCreate);
 const Account = model("Account", user_accounts)
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', 
+  { successRedirect: "/login/success",
+    failureRedirect:"/login/failed" }),
+  );
+
+app.get("/login/failed", (req,res)=>{
+  res.status(401).json({
+    success:false,
+    message:"Failure"
+  })
+})
+app.get("/login/success", (req,res)=>{
+
+  res.redirect(`${process.env.CALLBACKURL}`)
+  Account.findOne({ Email: req.user.Email }).exec()
+        .then((account) => {
+          if(!account.first_name){     
+            data={
+              first_name:ProfileAuth.name.givenName,
+              last_name: ProfileAuth.name.familyName,
+            }
+            Account.findOneAndUpdate({ id: currentAccount.id },data,{new: true} )
+        .then(updatedDoc => {
+            currentAccount=updatedDoc
+            ProfileAuth={}
+          })
+      }else{
+        console.log("ACCOUNT HAS ALREADY THE NAME")
+      
+      }
+          
+        })
+  // res.status(200).json({
+  //   success:true,
+  //   message:"Succesful",
+  //   // user:req.user,
+  // })
+})
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile','email'] }));
 
 app.post("/login", (req, res, next) => {
   passport.authenticate("local", (err, user, info) => {
