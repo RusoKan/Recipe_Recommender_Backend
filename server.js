@@ -11,6 +11,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
+const axios= require("axios")
 const saltRounds = 10;
 let currentAccount={}
 
@@ -126,6 +127,7 @@ const user_accounts = new Schema({
     country:String,
     Email: String,
     Password: String,
+    MyRecipes:[String],
     Diet:{
     TypeOfdiet:String,
     glutenFree:Boolean,
@@ -210,6 +212,98 @@ app.post("/login", (req, res, next) => {
     res.json(req.isAuthenticated())
     
   })
+  app.post("/recipeFinderByName", function(req,res,next) {
+    axios.get(`http://www.themealdb.com/api/json/v1/1/search.php?s=${req.body.search}`)
+    .then((response)=>{
+      res.json(response.data)
+    }
+    )
+    
+  })
+  app.post("/RecipefromID", function(req,res,next) {
+  axios.get(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${req.body.search}`)
+  .then((response)=>{
+    res.json(response.data)
+  }
+  )
+})
+  app.get("/MyrecipefromID",function(req,res,next) {
+    let recipes=[]
+    const promises=[]
+     Account.findOne({id:currentAccount.id}).exec()
+     .then((data)=>{
+      for (let index = 0; index < data.MyRecipes.length; index++) {
+        const promise=axios.get(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${data.MyRecipes[index]}`)
+        .then((response)=>{
+          let necessarydata={
+            id:response.data.meals[0].idMeal,
+            mealName:response.data.meals[0].strMeal,
+            MealCategory:response.data.meals[0].strCategory,
+            Area:response.data.meals[0].strArea,
+            Image:response.data.meals[0].strMealThumb,
+
+          }
+          
+          recipes.push(necessarydata)
+          
+        })
+        promises.push(promise)
+      }
+      return Promise.all(promises);
+     })
+     
+     .then(() => {
+      res.status(200).json(recipes);
+    })
+    .catch((error) => {
+      // Handle any errors
+      next(error);
+    });
+    
+    
+    
+  })
+  app.get("/latestAddedRecipe", function (req,res,next) {
+    const recipes=[]
+    const promises=[]
+    Account.findOne({id:currentAccount.id}).exec()
+    .then((data)=>{
+      let latestNumRecipe
+      if(data.MyRecipes.length<=3)
+      latestNumRecipe=data.MyRecipes.length
+      else if(data.MyRecipes.length>3)
+      latestNumRecipe=3
+      for (let index = 1; index <= latestNumRecipe ; index++) {
+        const promise=axios.get(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${data.MyRecipes[data.MyRecipes.length- index]}`)
+        .then((response)=>{
+          let necessarydata={
+            id:response.data.meals[0].idMeal,
+            mealName:response.data.meals[0].strMeal,
+            MealCategory:response.data.meals[0].strCategory,
+            Area:response.data.meals[0].strArea,
+            Image:response.data.meals[0].strMealThumb,
+
+          }
+          
+          recipes.push(necessarydata)
+          
+        })
+        promises.push(promise)
+      }
+      return Promise.all(promises);
+     })
+     
+     .then(() => {
+      res.status(200).json(recipes);
+    })
+    .catch((error) => {
+      // Handle any errors
+      next(error);
+    });
+
+    })
+
+  
   app.post('/logout', function(req, res, next){
     req.logout(function(err) {
       if (err) { return next(err); }
@@ -275,7 +369,23 @@ app.put("/update",(req,res,next)=>{
   });
 
 })
+app.put("/updateRecipe", async (req,res,next)=>{
+const doc = await Account.findOne({ id: currentAccount.id });
+let exists=false;
+for (let index = 0; index < doc.MyRecipes.length; index++) {
+    if(doc.MyRecipes[index]==req.body.mealID)
+      exists=true
+}
+if(!exists){
+ doc.MyRecipes.push(req.body.mealID)
+ await doc.save();
+ res.status(201).json({msg:"Recipe Added to your list!"})
+}
+else{
+  res.status(400).json({msg:"The Recipe is already in your list"})
+}
 
+})
 MongooseConnect().then
     (app.listen(PORT, () => {
         console.log(`Working in port ${PORT}`)
