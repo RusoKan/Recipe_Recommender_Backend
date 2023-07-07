@@ -134,8 +134,13 @@ const user_accounts = new Schema({
     dairyFree:Boolean ,
     Vegetarian:Boolean ,
     Vegan:Boolean,
-  }
-})
+  },
+  Reviews:[{
+    RecipeId:String,
+    ratingStar:Number,
+    ratingText:String,
+  }]
+}, )
 user_accounts.plugin(findOrCreate);
 const Account = model("Account", user_accounts)
 
@@ -369,6 +374,36 @@ app.put("/update",(req,res,next)=>{
   });
 
 })
+app.post("/deleteRecipe", (req,res,next)=>{
+  const mealID=req.body.search
+  console.log(mealID)
+  Account.updateOne({ id: currentAccount.id },{$pull:{MyRecipes:mealID}})
+  .then(data=>{
+    console.log(data)
+  })
+  
+    
+  
+})
+
+app.put("/ReviewForRecipe",async(req,res,next)=>{
+  console.log(req.body)
+  const doc = await Account.findOne({ id: currentAccount.id });
+  let exists=false;
+  for (let index = 0; index < doc.Reviews.length; index++) {
+    if(doc.Reviews[index].RecipeId==req.body.data.RecipeId)
+     { exists=true
+      doc.Reviews[index]=req.body.data
+      await doc.save();
+    }
+}
+if(!exists){
+  doc.Reviews.push(req.body.data)
+  await doc.save();
+  res.status(201).json({msg:"Review Added to your list!"})
+ }
+ 
+})
 app.put("/updateRecipe", async (req,res,next)=>{
 const doc = await Account.findOne({ id: currentAccount.id });
 let exists=false;
@@ -384,6 +419,9 @@ if(!exists){
 else{
   res.status(400).json({msg:"The Recipe is already in your list"})
 }
+
+
+
 
 })
 MongooseConnect().then
