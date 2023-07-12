@@ -139,7 +139,8 @@ const user_accounts = new Schema({
     RecipeId:String,
     ratingStar:Number,
     ratingText:String,
-  }]
+  }],
+  ShoppingList:[String],
 }, )
 user_accounts.plugin(findOrCreate);
 const Account = model("Account", user_accounts)
@@ -374,6 +375,27 @@ app.put("/update",(req,res,next)=>{
   });
 
 })
+app.get("/getShoppingList",async (req,res,next)=>{
+  try {
+    const doc=await Account.findOne({id:currentAccount.id})
+    res.status(200).json({msg:"ShoppingList Received",ListofIngredient:doc.ShoppingList})
+  } catch (error) {
+    res.status(400).json({msg:"Error in Shopping List"})
+  }
+  
+  
+})
+app.post("/removeFromShoppingList",async (req,res,next)=>{
+  const arrayOfIngredient=req.body.data
+  console.log(arrayOfIngredient)
+  Account.updateOne({id: currentAccount.id},{$pullAll:{ShoppingList:arrayOfIngredient}})
+  .then(response=>{
+    res.status(200).json({msg:"Ingredient have been deleted"})
+  })
+  .catch(response=>{
+    res.status(400).json({msg:"There is an error somewhere..."})
+  })
+})
 app.post("/deleteRecipe", (req,res,next)=>{
   const mealID=req.body.search
   console.log(mealID)
@@ -385,7 +407,48 @@ app.post("/deleteRecipe", (req,res,next)=>{
     
   
 })
+app.put("/AddingIngredientsToShoppingList",async(req,res,next)=>{
+  // const doc = await Account.findOne({ id: currentAccount.id })
+  const IngredientArray=[]
+  axios.get(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${req.body.RecipeId}`)
+  .then(response=>{
+    const meal=response.data.meals[0]
+    const Number_of_ingredients=20
+    for (let index = 1; index < Number_of_ingredients; index++) {
+      if(meal[`strIngredient${index}`]!="" )
+      if(meal[`strIngredient${index}`])
+      {
+        console.log(meal[`strIngredient${index}`])
+        IngredientArray.push(meal[`strIngredient${index}`])
 
+          // Account.updateOne({id:currentAccount.id},{$addToSet:{ShoppingList:meal[`strIngredient${index}`]}})
+          // .then(response=>{
+          //   if(index===Number_of_ingredients-1)
+          //     {
+          //       console.log("Executed")
+          //       res.status(200).json({msg:" The ingredients was succesfully Added to the Shopping List"
+              
+          //     })}
+          // })
+          // .catch(err=>{
+          //   res.status(400).json({msg:err})
+          // })
+        
+      }
+      
+  }
+  Account.updateOne({id:currentAccount.id},{$addToSet:{ShoppingList:{$each:IngredientArray}}})
+  .then(response=>{
+    res.status(200).json({msg:" The ingredients was succesfully Added to the Shopping List"
+  })
+})
+  .catch(response=>{
+    res.status(400).json({msg:response})
+  
+  })
+ 
+})
+})
 app.put("/ReviewForRecipe",async(req,res,next)=>{
   console.log(req.body)
   const doc = await Account.findOne({ id: currentAccount.id });
