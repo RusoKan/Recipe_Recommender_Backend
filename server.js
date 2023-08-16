@@ -61,8 +61,48 @@ var noDietRestrictionUpdate = new CronJob(
   true,
   'America/Toronto'
 );
-function calling(params) {
-  console.log("hello")
+function RecipeGenerator() {
+  Account.find({id:currentAccount.id})
+  .then(accounts=>{
+
+
+    const RestrictedDiet=[]
+    if(accounts[0].Diet.ArrayofDietRestriction!=0 && accounts[0].Diet.TypeOfdiet==="Diet restriction"){
+      RECIPE.find({_id: new ObjectId(process.env.RECIPE_COLLECTION_ID)})
+      .then(recipes=>{
+        while (RestrictedDiet.length<3) {
+          let chosenRecipe=recipes[0].DietWithHealthLabels[Math.floor(Math.random() * recipes[0].DietWithHealthLabels.length)]
+        let chosenRecipeHealthLabel=chosenRecipe.mealHealthLabels
+        let CheckDiet=accounts[0].Diet.ArrayofDietRestriction.every(DietRestriction=>{
+          let CapitalizedDietRestriction=DietRestriction.toUpperCase()
+          CapitalizedDietRestriction=CapitalizedDietRestriction.replace(/_/g, '-');
+          return chosenRecipeHealthLabel.includes(DietRestriction)|| chosenRecipeHealthLabel.includes(CapitalizedDietRestriction) 
+          
+        })
+        
+        console.log("DietChecking",CheckDiet)
+        if (CheckDiet) {
+          RestrictedDiet.push(chosenRecipe.mealID)
+          console.log(chosenRecipe)
+        }
+        }
+        Account.updateOne({id:accounts[0].id}, { $set: { RestrictedDietSuggestions: RestrictedDiet } })
+        .then(response=>{
+            console.log(response)
+        })
+        
+        // console.log("CHOSEN RECIPE",chosenRecipe)
+        // for (let indexhealthLabel = 0; indexhealthLabel < chosenRecipe.mealHealthLabels.length; indexhealthLabel++) {
+          
+          
+        // }
+      })
+        
+    }
+  
+
+  })
+  
 }
 var RestrictedDietForAllUsers = new CronJob(
   '08 46 17 * * *',
@@ -484,7 +524,7 @@ app.get("/SuggestionRecipe", async (req, res, next) => {
   }
   else if (user_doc.Diet.TypeOfdiet === "Diet restriction")
   {
-    // RecipeGenerator()
+    
     res.json({ mealID: user_doc.RestrictedDietSuggestions })
   }
   else if (!user_doc.Diet.TypeOfdiet) {
@@ -593,6 +633,10 @@ app.put("/update", (req, res, next) => {
   console.log("REQ",req.body)
   Account.findOneAndUpdate({ id: currentAccount.id }, req.body, { new: true })
     .then(updatedDoc => {
+      console.log("CurrentAccount",currentAccount)
+        if(currentAccount.Diet.ArrayofDietRestriction!=req.body.Diet.ArrayofDietRestriction){
+          RecipeGenerator()
+        }
       currentAccount = updatedDoc
       res.json(updatedDoc)
       console.log('Updated document:', updatedDoc);
