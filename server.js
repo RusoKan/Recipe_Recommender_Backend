@@ -405,12 +405,28 @@ app.post("/getOneRecipeFromID", function (req, res, next) {
   console.log("SENTDATA", req.body)
   axios.get(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${req.body.search}`)
     .then(response => {
+      const meal = response.data.meals[0]
+                console.log(meal)
+                let ingredients = []
+                const Number_of_ingredients = 20
+                for (let index = 1; index < Number_of_ingredients; index++) {
+                    if (meal[`strIngredient${index}`] != "")
+                        if (meal[`strIngredient${index}`]) {
+                            let Ingredient = meal[`strMeasure${index}`] + " " + meal[`strIngredient${index}`]
+                            ingredients.push(Ingredient)
+                        }
+
+                }
       let necessarydata = {
-        id: response.data.meals[0].idMeal,
-        mealName: response.data.meals[0].strMeal,
-        MealCategory: response.data.meals[0].strCategory,
-        Area: response.data.meals[0].strArea,
-        Image: response.data.meals[0].strMealThumb,
+        mealName: meal.strMeal,
+                    mealCategory: meal.strCategory,
+                    mealImg: meal.strMealThumb,
+                    mealtag: meal.strTags,
+                    mealInstruction: meal.strInstructions,
+                    mealLink: meal.strYoutube,
+                    mealIngredients: ingredients,
+                    mealID: meal.idMeal,
+                    mealArea:meal.strArea,
 
       }
       res.status(200).json(necessarydata);
@@ -720,7 +736,7 @@ app.put("/AddingIngredientsToShoppingList", async (req, res, next) => {
 
     })
 })
-app.put("/ReviewForRecipe", async (req, res, next) => {
+app.post("/ReviewForRecipe", async (req, res, next) => {
   console.log(req.body)
   const doc = await Account.findOne({ id: currentAccount.id });
   let exists = false;
