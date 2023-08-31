@@ -165,7 +165,7 @@ var RestrictedDietForAllUsers = new CronJob(
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(bodyParser.json());
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: process.env.CALLBACKURL,
   methods: "GET,POST,PUT,DELETE",
   credentials: true,
 

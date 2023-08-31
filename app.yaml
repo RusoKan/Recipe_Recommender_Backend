@@ -1,0 +1,13 @@
+runtime: nodejs18
+env_variables:
+  MONGODBBKEY: "mongodb+srv://ruso:JHLNCTYkB9nAFnlb@clusterrecipe.s4bls01.mongodb.net/AccountDB?retryWrites=true&w=majority"
+  MONGODBPASS: "JHLNCTYkB9nAFnlb"
+  SECRET: "COOKIESECRET"
+  GOOGLE_CLIENT_ID : "479118788109-a2n9veor6unnt0h2v6oi6fe3j7o5pore.apps.googleusercontent.com"
+  GOOGLE_CLIENT_SECRET: "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"
+  CALLBACKURL: "https://recipe-recommender.vercel.app/"
+  RECIPE_COLLECTION_ID: "64b909a6ce590bb1d885f141"
+  EDAMAM_API_KEY: "f47d078b259f3675fd40fc8fe5f334c0"
+  EDAMAM_APP_ID: "14862546"
+  EDAMAM_NUTRITIONAL_ANALYSIS_API_KEY: "8ba32ed139685762b4da282c561c8d1d"
+  EDAMAM_NUTRITIONAL_ANALYSIS_APP_ID: "3e07ab0a"
