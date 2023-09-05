@@ -293,6 +293,7 @@ const user_accounts = new Schema({
   }],
   ShoppingList: [String],
   RestrictedDietSuggestions:[String],
+  SavedProfile:Boolean,
 
 },)
 user_accounts.plugin(findOrCreate);
@@ -535,17 +536,19 @@ app.get("/SuggestionRecipe", async (req, res, next) => {
   const SuggestionRecipe = []
   const user_doc = await Account.findOne({ id: currentAccount.id }).exec()
   const doc = await RECIPE.findOne({ _id: new ObjectId(process.env.RECIPE_COLLECTION_ID) }).exec()
-  if (user_doc.Diet.TypeOfdiet === "No Diet restriction") {
-    res.json({ mealID: doc.noDietRestriction })
+  if (!user_doc.SavedProfile) {
+    res.json({ mealID: doc.noDietRestriction,isProfileSetup:user_doc.SavedProfile , msg: "Make sure to set up your Diet preferences in 'Manage your profile' under Setting to update your Recipe Suggestions." })
+  }
+  else if (user_doc.Diet.TypeOfdiet === "No Diet restriction") {
+    res.json({ mealID: doc.noDietRestriction,isProfileSetup:user_doc.SavedProfile })
   }
   else if (user_doc.Diet.TypeOfdiet === "Diet restriction")
   {
-    
-    res.json({ mealID: user_doc.RestrictedDietSuggestions })
+     console.log(doc.SavedProfile)
+  
+    res.json({ mealID: user_doc.RestrictedDietSuggestions,isProfileSetup:user_doc.SavedProfile })
   }
-  else if (!user_doc.Diet.TypeOfdiet) {
-    res.json({ mealID: doc.noDietRestriction, msg: "Your Account Has not been updated, Go to Profile to set up diet" })
-  }
+   
   else {
     // if(user_doc.Diet.)
 
@@ -625,7 +628,8 @@ app.post("/signup", async (req, res, next) => {
               Vegetarian: false,
               Vegan: false,
               ArrayofDietRestriction: [],
-            }
+            },
+            SavedProfile:false,
           })
           user.save()
         });
@@ -644,6 +648,81 @@ app.post("/signup", async (req, res, next) => {
 
 
 
+})
+app.get("/recipeCategories",(req,res,next)=>{
+  axios.get("https://www.themealdb.com/api/json/v1/1/categories.php")
+  .then(response=>{
+   res.json(response.data)
+  })
+  
+})
+app.post("/getListofMealFromSelectedCountry",(req,res,next)=>{
+  axios.get(`https://www.themealdb.com/api/json/v1/1/filter.php?a=${req.body.Area}`)
+  .then(response=>{
+    res.json(response.data)
+  })
+  
+})
+app.get("/recipeArea",(req,res,next)=>{
+  const demonymToCountry = {
+    "American": "United States",
+    "British": "United Kingdom",
+    "Canadian": "Canada",
+    "Chinese": "China",
+    "Croatian": "Croatia",
+    "Dutch": "Netherlands",
+    "Egyptian": "Egypt",
+    "Filipino": "Philippines",
+    "French": "France",
+    "Greek": "Greece",
+    "Indian": "India",
+    "Irish": "Ireland",
+    "Italian": "Italy",
+    "Jamaican": "Jamaica",
+    "Japanese": "Japan",
+    "Kenyan": "Kenya",
+    "Malaysian": "Malaysia",
+    "Mexican": "Mexico",
+    "Moroccan": "Morocco",
+    "Polish": "Poland",
+    "Portuguese": "Portugal",
+    "Russian": "Russia",
+    "Spanish": "Spain",
+    "Thai": "Thailand",
+    "Tunisian": "Tunisia",
+    "Turkish": "Turkey",
+    "Vietnamese": "Vietnam"
+};
+  axios.get("https://www.themealdb.com/api/json/v1/1/list.php?a=list")
+  .then(response=>{
+    const updatedmeal=[]
+    const requests=[]
+    let meals=response.data.meals.filter(meal=>meal.strArea!=="Unknown")
+     console.log(meals)
+      meals.map((meal,index)=>{
+        requests[index]= axios.get(`https://restcountries.com/v3/name/${demonymToCountry[meal.strArea]}`)
+        .then((response)=>{
+          
+        const country=  response.data.filter(country=>country.name.common===demonymToCountry[meal.strArea])
+        
+        
+        requests[index] =   meals[index].flag = country[0].flags[0]; // Update the flag property
+         updatedmeal.push(meal)
+        return meal;
+        
+          
+        // countryFlags=country.flags
+        //   console.log(countryFlags)
+        })
+      })
+     
+      console.log("HELLO")
+      Promise.all(requests)
+      .then(response => {
+        res.json(updatedmeal)
+      })
+  })
+  
 })
 app.put("/update", (req, res, next) => {
   console.log("REQ",req.body)
@@ -769,6 +848,8 @@ app.put("/updateRecipe", async (req, res, next) => {
   else {
     res.status(400).json({ msg: "The Recipe is already in your list" })
   }
+
+
 
 
 
